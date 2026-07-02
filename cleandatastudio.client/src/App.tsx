@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import type { ProfiledDatasetResponse } from './types/data';
 
@@ -10,12 +10,16 @@ export default function App() {
     const [selectedLabel, setSelectedLabel] = useState<string>('');
     const [showToast, setShowToast] = useState<boolean>(false);
 
+    // Drag and drop focus state tracking
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Pagination state for the data chart
     const [currentPage, setCurrentPage] = useState<number>(1);
     const itemsPerPage = 6;
 
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-        const file = event.target.files?.[0];
+    // Unified payload processor for files coming via click or drop handlers
+    const processFilePayload = async (file: File | undefined): Promise<void> => {
         if (!file) return;
 
         setLoading(true);
@@ -68,9 +72,42 @@ export default function App() {
 
         } catch (err) {
             console.error("File upload error:", err);
-            setError(err instanceof Error ? err.message : "We couldn't process this CSV file. Please make sure it is formatted correctly.");
+            setError(err instanceof Error ? err.message : "We couldn't process this file. Please make sure it is a valid, formatted table asset.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+        const file = event.target.files?.[0];
+        processFilePayload(file);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!loading) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (loading) return;
+        const file = e.dataTransfer.files?.[0];
+        processFilePayload(file);
+    };
+
+    const handleContainerClick = (): void => {
+        if (!loading && fileInputRef.current) {
+            fileInputRef.current.click();
         }
     };
 
@@ -118,10 +155,10 @@ export default function App() {
     };
 
     return (
-        <div className="h-screen w-screen bg-slate-50 text-slate-900 antialiased overflow-hidden flex flex-col font-sans relative">
+        <div className="min-h-screen w-screen bg-slate-50 text-slate-900 antialiased overflow-x-hidden flex flex-col font-sans relative">
 
             {/* ROAMING BLUE GRADIENT CIRCLE */}
-            <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-blue-400 via-sky-300 to-indigo-400 opacity-40 blur-[120px] pointer-events-none z-0 animate-roam" />
+            <div className="absolute top-[-10%] right-[-10%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] rounded-full bg-gradient-to-tr from-blue-400 via-sky-300 to-indigo-400 opacity-40 blur-[80px] md:blur-[120px] pointer-events-none z-0 animate-roam" />
 
             {/* TOP RIGHT TOAST POP-UP */}
             {showToast && (
@@ -143,54 +180,57 @@ export default function App() {
                 </div>
             )}
 
-            {/* MAIN WORKSPACE - Extended structural margins built around perimeter */}
-            {/* Added relative z-10 class here to stay explicitly above the background layer */}
-            <div className="flex-1 max-w-(screen-2xl) w-full mx-auto px-20 md:px-32 xl:px-44 py-16 overflow-y-auto box-border relative z-10">
+            {/* Hidden native input element used universally for manual browser window searching */}
+            <input
+                type="file"
+                accept=".csv, .xlsx"
+                onChange={handleFileChange}
+                className="hidden"
+                ref={fileInputRef}
+                id="csv-file-picker"
+                disabled={loading}
+            />
+
+            {/* MAIN WORKSPACE CONTAINER */}
+            <div className="max-w-(screen-2xl) w-full mx-auto px-6 sm:px-12 md:px-16 lg:px-32 xl:px-44 py-12 md:py-16 box-border relative z-10 flex flex-col justify-center">
 
                 {/* DYNAMIC LAYOUT SWITCHER */}
                 {dataset ? (
                     /* ONE COLUMN LAYOUT (WHEN CSV IS UPLOADED) */
                     <div className="flex flex-col space-y-8 w-full">
-                        {/* Title and New Description ONLY */}
+                        {/* Title and Badge Metadata */}
                         <div className="space-y-3 w-full">
-                            <h2 className="text-7xl font-semibold tracking-normal text-slate-900 m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.06em' }}>
+                            <span className="inline-block text-[12px] font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md mb-5" style={{ fontFamily: 'Arial, sans-serif' }}>
+                                Free Online Tool
+                            </span>
+                            <h2 className="text-4xl sm:text-5xl md:text-7xl font-semibold text-slate-900 m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.06em' }}>
                                 CleanData Studio
                             </h2>
-                            <p className="text-base text-slate-600 leading-relaxed mt-3">
+                            <p className="text-md md:text-base text-slate-600 leading-relaxed mt-3" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.01em' }}>
                                 Your data has been processed successfully. Below you can visualize your cleaned parameters, review the updated structures, and download your export-ready output file.
                             </p>
                         </div>
 
-                        {/* Buttons positioned side-by-side */}
-                        <div className="flex flex-row gap-4 items-center w-full max-w-2xl">
-                            <div className="flex-1">
-                                <input
-                                    type="file"
-                                    accept=".csv"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                    id="csv-file-picker"
-                                    disabled={loading}
-                                />
-                                <label
-                                    htmlFor="csv-file-picker"
-                                    className={`px-8 py-3.5 text-sm font-bold uppercase tracking-wider rounded-xl transition-all block text-center cursor-pointer w-full shadow-sm ${loading
-                                        ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed animate-pulse"
-                                        : "bg-blue-600 text-white hover:bg-blue-700 active:scale-98 border border-blue-700"
-                                        }`}
-                                >
-                                    {loading ? "Reading File..." : "Upload CSV File"}
-                                </label>
-                            </div>
+                        {/* Control actions bar */}
+                        <div className="flex flex-col sm:flex-row gap-4 items-center w-full max-w-2xl">
+                            <button
+                                type="button"
+                                onClick={handleContainerClick}
+                                className={`px-8 py-3.5 text-sm font-semibold rounded-xl transition-all block text-center cursor-pointer w-full sm:flex-1 shadow-sm ${loading
+                                    ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed animate-pulse"
+                                    : "bg-blue-600 text-white hover:bg-blue-700 active:scale-98 border border-blue-700"
+                                    }`} style={{ fontFamily: 'Arial, sans-serif' }}
+                            >
+                                {loading ? "Reading File..." : "Upload Another File"}
+                            </button>
 
-                            <div className="flex-1">
-                                <button
-                                    onClick={handleDownloadCSV}
-                                    className="px-8 py-3.5 text-sm font-bold tracking-wider uppercase rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 active:scale-98 transition-all shadow-sm cursor-pointer border border-emerald-700 w-full"
-                                >
-                                    Download Cleaned CSV
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={handleDownloadCSV}
+                                className="px-8 py-3.5 text-sm font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 active:scale-98 transition-all shadow-sm cursor-pointer border border-emerald-700 w-full sm:flex-1" style={{ fontFamily: 'Arial, sans-serif' }}
+                            >
+                                Download Cleaned CSV
+                            </button>
                         </div>
 
                         {error && (
@@ -199,8 +239,8 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* Health Metric Boxes rendered in full-width single column stream */}
-                        <div className="grid grid-cols-3 gap-4 w-full">
+                        {/* Health Summary Dashboard Badges */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
                             {[
                                 { label: "Processed Rows", val: dataset.healthReport.totalRowsProcessed, color: "text-blue-600", border: "border-blue-200" },
                                 { label: "Duplicates Cleared", val: dataset.healthReport.duplicatesRemovedCount, color: "text-red-600", border: "border-slate-200" },
@@ -214,59 +254,77 @@ export default function App() {
                         </div>
                     </div>
                 ) : (
-                    /* DEFAULT TWO-COLUMN CONTROL LAYER (BEFORE UPLOAD / WHILE LOADING) */
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-                        {/* LEFT COLUMN */}
-                        <div className="lg:col-span-5 flex flex-col items-start max-w-xl w-full space-y-6">
+                    /* TWO-COLUMN CONTROL LAYER (BEFORE UPLOAD / WHILE LOADING) */
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch w-full">
+
+                        {/* LEFT COLUMN: BRAND CONTROLLER */}
+                        <div className="lg:col-span-5 flex flex-col justify-between max-w-xl w-full py-2 space-y-6 lg:space-y-0">
                             <div className="space-y-3 w-full">
-                                <h2 className="text-7xl font-semibold tracking-normal text-slate-900 m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.06em' }}>
+                                <div className="mb-2">
+                                    <span className="inline-block text-[10px] font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md">
+                                        Free Online Tool
+                                    </span>
+                                </div>
+                                <h2 className="text-5xl sm:text-6xl lg:text-7xl font-semibold tracking-normal text-slate-900 mt-7" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.06em' }}>
                                     CleanData Studio
                                 </h2>
-                                <p className="text-base text-slate-600 leading-relaxed mt-3">
+                                    <p className="text-sm sm:text-base text-slate-600 leading-relaxed pt-2 mt-3" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.03em' }}>
                                     A tool that automatically removes duplicates, standardizes formatting, and creates clear visualizations from your spreadsheet.
                                 </p>
                             </div>
 
-                            <div className="w-full">
-                                <input
-                                    type="file"
-                                    accept=".csv"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                    id="csv-file-picker"
-                                    disabled={loading}
-                                />
-                                <label
-                                    htmlFor="csv-file-picker"
-                                    className={`px-8 py-3.5 text-sm font-bold uppercase tracking-wider rounded-xl transition-all block text-center cursor-pointer w-full shadow-sm ${loading
-                                        ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed animate-pulse"
-                                        : "bg-blue-600 text-white hover:bg-blue-700 active:scale-98 border border-blue-700"
-                                        }`}
-                                >
-                                    {loading ? "Reading File..." : "Upload CSV File"}
-                                </label>
+                            {/* Privacy and Verification Tags positioned contextually below copy */}
+                            <div className="flex flex-row items-center gap-6 pt-4 lg:pt-0 mt-5 border-t lg:border-none border-slate-200/60">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                        <span className="text-xs font-normal tracking-wider" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.04em' }}>100% Privacy</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-700">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                        <span className="text-xs font-normal tracking-wider" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.04em' }}>Instant Results</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN */}
-                        <div className="lg:col-span-7 w-full">
+                        {/* RIGHT COLUMN: ACTIVE INTERACTIVE WORKSPACE DROP ZONE */}
+                        <div className="lg:col-span-7 w-full flex flex-col justify-center">
                             {error && (
                                 <div className="bg-red-50 border border-red-200 text-red-700 p-5 mb-4 rounded-xl text-xs font-medium tracking-wide shadow-xs">
-                                    <span className="font-bold text-red-800">Processing Error:</span> {error}
+                                        <span className="font-bold text-red-800" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.02em' }}>Processing Error:</span> {error}
                                 </div>
                             )}
 
-                            {loading && (
-                                <div className="h-[258px] bg-white border border-slate-200 rounded-xl animate-pulse w-full" />
-                            )}
+                            {loading ? (
+                                    <div className="min-h-[280px] lg:h-full bg-white border border-slate-200 rounded-xl animate-pulse w-full flex items-center justify-center text-slate-400 text-sm font-medium" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.02em' }}>
+                                    Parsing table matrices...
+                                </div>
+                            ) : (
+                                <div
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    onClick={handleContainerClick}
+                                    className={`min-h-[280px] lg:h-full flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 bg-white transition-all text-center w-full relative z-10 cursor-pointer ${isDragging
+                                            ? "border-blue-500 bg-blue-50/40 scale-[1.01] shadow-md"
+                                            : "border-slate-300 hover:border-slate-400 hover:bg-slate-50/50 shadow-2xs"
+                                        }`}
+                                >
+                                    {/* Styled Cloud/Upload Graphic Indicator */}
+                                    <div className={`p-4 rounded-full mb-4 transition-colors ${isDragging ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-400"}`}>
+                                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                                        </svg>
+                                    </div>
 
-                            {!loading && (
-                                <div className="h-[310px] flex flex-col items-center justify-center border border-slate-400 rounded-md p-8 bg-white shadow-2xs text-center w-full relative z-10">
-                                    <h3 className="text-sm font-bold text-slate-700 tracking-wide uppercase m-0">
-                                        No Active Workspace
+                                            <h3 className="text-base font-bold text-slate-700 uppercase m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.02em' }}>
+                                        {isDragging ? "Drop your dataset file here" : "Drag a CSV or XLSX file here"}
                                     </h3>
-                                    <p className="text-sm text-slate-400 max-w-sm mt-2 leading-relaxed m-0">
-                                        Upload a CSV file to generate interactive charts, summary cards, and a cleaned data table.
+                                            <p className="text-sm text-slate-400 max-w-xs mt-2 leading-relaxed m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.01em' }}>
+                                        or click anywhere within the dashed layout container to manually browse files.
                                     </p>
                                 </div>
                             )}
@@ -274,14 +332,14 @@ export default function App() {
                     </div>
                 )}
 
-                {/* PROCESSING LOGIC SUB-CONTAINER - Modified to warm yellow theme */}
+                {/* LOGIC MATRICES & EXPLANATION SUB-CONTAINER */}
                 {!dataset && (
-                    <div className="mt-12">
+                    <div className="mt-12 w-full">
                         <div className="bg-amber-50/70 border border-amber-400 rounded-xl p-6 space-y-3 shadow-3xs">
-                            <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide m-0">
+                            <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.04em' }}>
                                 Processing Logic
                             </h4>
-                            <p className="text-slate-700 text-sm leading-relaxed mt-2">
+                            <p className="text-slate-700 text-sm leading-relaxed mt-2 m-0" style={{ fontFamily: 'Arial, sans-serif', letterSpacing: '-0.02em' }}>
                                 This workspace environment standardizes datasets automatically by eliminating row duplicates, adjusting format padding, and mapping missing fields. Any missing values are filled with <code className="text-amber-800 font-mono bg-amber-100/80 px-2 py-0.5 rounded text-xs font-bold">"UNKNOWN"</code> instead of guessing the data, helping prevent incorrect results. Existing <code className="text-amber-800 font-mono bg-amber-100/80 px-2 py-0.5 rounded text-xs font-bold">"UNKNOWN"</code> values remain unchanged.
                             </p>
                         </div>
@@ -292,7 +350,7 @@ export default function App() {
                 {dataset && !loading && (
                     <main className="space-y-8 mt-12 border-t border-slate-200 pt-12 animate-fade-in">
 
-                        {/* Selectors container with border */}
+                        {/* Chart Category Selection Configurator */}
                         <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2">
@@ -325,15 +383,15 @@ export default function App() {
                             </div>
                         </section>
 
-                        {/* Chart render section with explicit container border */}
-                        <section className="bg-white border border-slate-200 p-6 rounded-xl shadow-xs">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-100 pb-4">
+                        {/* Interactive analytical charts rendering layer */}
+                        <section className="bg-white border border-slate-200 p-4 sm:p-6 rounded-xl shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-4">
                                 <h3 className="text-sm font-bold uppercase text-slate-800 tracking-wider m-0">Visual Analysis Rendering</h3>
-                                <span className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full font-semibold font-mono">
+                                <span className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full font-semibold font-mono self-start sm:self-auto">
                                     PAGE {currentPage} OF {totalPages}
                                 </span>
                             </div>
-                            <div className="h-64 w-full">
+                            <div className="h-64 w-full overflow-x-auto">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={currentChartData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -387,7 +445,7 @@ export default function App() {
                             </div>
                         </section>
 
-                        {/* Table log container with explicit borders */}
+                        {/* Cleaned tabular data streaming logs panel */}
                         <section className="bg-white border border-slate-200 p-6 rounded-xl shadow-xs">
                             <div className="mb-4">
                                 <h3 className="text-sm font-bold uppercase text-slate-800 tracking-wider m-0">Cleaned Data Logs (First 100 Records)</h3>
