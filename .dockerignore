@@ -1,0 +1,28 @@
+# Source Control
+.git
+.gitignore
+.gitattributes
+
+# IDE and System Files
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+.DS_Store
+thumbs.db
+
+# .NET Build Artifacts (Crucial to exclude local binaries)
+**/bin/
+**/obj/
+
+# Node / React Frontend Dependencies & Builds
+**/node_modules/
+**/dist/
+**/build/
+.npm/
+npm-debug.log*
+
+# Docker Files themselves
+Dockerfile
+.dockerignore

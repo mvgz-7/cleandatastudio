@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="cleandatastudio.client/cleandatastudio.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="CleanDataStudio.Server/CleanDataStudio.Server.csproj" />
+</Solution>
